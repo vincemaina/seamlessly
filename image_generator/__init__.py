@@ -71,14 +71,15 @@ def get_file_name(file_path):
 def generate(file_path, output_format, crop_width='iw', crop_height='ih', crop_position_x='(in_w-out_w)/2', crop_position_y='(in_h-out_h)/2', fps=25):
 
     import ffmpeg
+    import logging
+
+    logger = logging.getLogger(__name__)
 
     input_file = ffmpeg.input(file_path)
 
     success = True
 
-
     # Getting the dimensions of the file the user has submitted
-
     try:
         from . get_video_properties import get_video_properties
     except ImportError:
@@ -88,7 +89,6 @@ def generate(file_path, output_format, crop_width='iw', crop_height='ih', crop_p
 
     width = int(video_properties['width'])
     height = int(video_properties['height'])
-
 
     # Placing a limit of the dimensions of this image
     width, height = limit_dimensions(width, height)
@@ -146,13 +146,13 @@ def generate(file_path, output_format, crop_width='iw', crop_height='ih', crop_p
     try:
 
         # Executes all of the above
-        canvas.run()
+        canvas.run(capture_stdout=True, capture_stderr=True)
 
 
     except ffmpeg._run.Error as e:
-
-        print('FFmpeg produced an error.', e)
-
+        logger.exception("FFmpeg produced an error")
+        if getattr(e, "stderr", None):
+            logger.error(e.stderr.decode("utf-8", errors="replace"))
         success = False
 
 
@@ -161,15 +161,12 @@ def generate(file_path, output_format, crop_width='iw', crop_height='ih', crop_p
         # REMOVING USER UPLOADED FILES
 
         from pathlib import Path
+        import os
 
         print('DELETE:', file_path)
 
         # This deletes the file
         dirpath = Path(file_path)
-        # try:
-        #     os.remove(dirpath)
-        # except Exception as e:
-        #     print(e)
 
         # This deletes the file subfolder IF there are no other files in it.
         try:
@@ -186,33 +183,6 @@ def generate(file_path, output_format, crop_width='iw', crop_height='ih', crop_p
             os.rmdir(UPLOAD_FOLDER)
         except OSError:
             print(f'{UPLOAD_FOLDER} cannot be deleted - folder is not empty yet.')
-    
 
-        # REMOVING GENERATED FILES
-
-        print('DELETE:', output_location)
-
-        # This deletes the file
-        dirpath = Path(output_location)
-        # try:
-        #     os.remove(dirpath)
-        # except Exception as e:
-        #     print(e)
-
-        # This deletes the file subfolder IF there are no other files in it.
-        try:
-            folder_path = Path('/'.join(dirpath.parts[:-1]))
-            print('FOLDER PATH:', folder_path) 
-            if folder_path.exists() and folder_path.is_dir():
-                os.rmdir(folder_path)
-                print('Removed directory.')
-        except OSError:
-            print(f'{folder_path} cannot be deleted - folder is not empty yet.')
-
-        # This deletes the entire directory IF there are no other files/folders in it.
-        try:
-            os.rmdir(OUTPUT_FOLDER)
-        except OSError:
-            print(f'{OUTPUT_FOLDER} cannot be deleted - folder is not empty yet.')
 
     return output_location, success
