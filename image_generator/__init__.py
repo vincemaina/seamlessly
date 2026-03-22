@@ -5,7 +5,7 @@ def limit_dimensions(width, height):
 
     '''Scales down the image to MAX_DIMENSION if either width or height exceed MAX_DIMENSION.'''
 
-    MAX_DIMENSION = 2000
+    MAX_DIMENSION = 1080
 
     if width > MAX_DIMENSION:
 
@@ -92,29 +92,25 @@ def generate(file_path, output_format, crop_width='iw', crop_height='ih', crop_p
 
     # Placing a limit of the dimensions of this image
     width, height = limit_dimensions(width, height)
-
-    # Crop file
-    # input_file, width, height = crop_video(input_file, crop_width, crop_height, crop_position_x, crop_position_y, fps)
+    width, height = ensure_even_dimensions(width, height)
 
     # Defining dimensions of the tile
     tile_width = width * 2
     tile_height = height * 2
 
-
-    # stream, width, height = crop_video(stream)
-
-
     # This allows us to create four overlays from the same input
     split = input_file.split()
 
+    # Apply a safe resize before compositing
+    base = split[0].filter('scale', w=tile_width, h=tile_height, flags='lanczos')
+    base = base.filter('format', 'yuv420p')
 
     # Applying transformation to the input file and creating the seamless output media
-    canvas = split[0].filter('scale', w=tile_width, h=tile_height, flags='lanczos') # canvas
-    canvas = canvas.overlay(split[1].filter('scale', w=width, h=height), x=0, y=0) # top left
-    canvas = canvas.overlay(split[2].hflip().filter('scale', w=width, h=height), x=width, y=0) # top right
-    canvas = canvas.overlay(split[3].hflip().vflip().filter('scale', w=width, h=height), x=width, y=height) # bottom right
-    canvas = canvas.overlay(split[4].vflip().filter('scale', w=width, h=height), x=0, y=height) # bottom left
-
+    canvas = base
+    canvas = canvas.overlay(split[1].filter('scale', w=width, h=height).filter('format', 'yuv420p'), x=0, y=0)
+    canvas = canvas.overlay(split[2].hflip().filter('scale', w=width, h=height).filter('format', 'yuv420p'), x=width, y=0)
+    canvas = canvas.overlay(split[3].hflip().vflip().filter('scale', w=width, h=height).filter('format', 'yuv420p'), x=width, y=height)
+    canvas = canvas.overlay(split[4].vflip().filter('scale', w=width, h=height).filter('format', 'yuv420p'), x=0, y=height)
 
     # Getting file name without extensions
     file_name = get_file_name(file_path)
@@ -138,8 +134,8 @@ def generate(file_path, output_format, crop_width='iw', crop_height='ih', crop_p
     # Defines output file name/path.
     output_location = f'{output_file_path}/seamlessly_{file_name}_{creation_time}.{output_format}'
 
-    canvas = canvas.output(output_location, loop=0)
-    
+    # Force a safe pixel format for output
+    canvas = canvas.output(output_location, loop=0, pix_fmt='yuv420p')
 
     # --------------------------------------------------------------------------------------
 
